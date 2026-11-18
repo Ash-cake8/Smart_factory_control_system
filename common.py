@@ -22,9 +22,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 
-# --------------------------------------------------------------------------- #
-# Paths / constants
-# --------------------------------------------------------------------------- #
+
 ROOT = Path(__file__).resolve().parent
 RAW_PATH = ROOT / "data" / "raw" / "predictive_maintenance.csv"
 CLEAN_REF_PATH = ROOT / "data" / "raw" / "predictive_maintenance_clean.csv"
@@ -43,8 +41,7 @@ FAILURE_CLASSES = [
     "Overstrain Failure",
     "Power Failure",
     "Random Failures",
-    "Tool Wear Failure",
-]
+    "Tool Wear Failure",]
 
 CATEGORICAL_FEATURES = ["Type"]  # product quality tier: L < M < H
 NUMERIC_FEATURES = [
@@ -55,16 +52,13 @@ NUMERIC_FEATURES = [
     "Tool wear [min]",
     "Temp_diff_C",
     "Power_W",
-    "Wear_x_Torque",
-]
+    "Wear_x_Torque",]
 FEATURES = CATEGORICAL_FEATURES + NUMERIC_FEATURES
 STAGE1_TARGET = "Target"  # 0 = no failure, 1 = failure
 STAGE2_TARGET = "Failure Type"  # 5 failure modes (failure rows only)
 
 
-# --------------------------------------------------------------------------- #
-# Cleaning
-# --------------------------------------------------------------------------- #
+
 def clean_raw(raw: pd.DataFrame) -> pd.DataFrame:
     """Raw AI4I CSV -> modelling dataframe. Deterministic, no fitting involved."""
     df = raw.copy()
@@ -98,26 +92,16 @@ def load_clean() -> pd.DataFrame:
     return clean_raw(pd.read_csv(RAW_PATH))
 
 
-# --------------------------------------------------------------------------- #
-# Split (one split shared by both stages)
-# --------------------------------------------------------------------------- #
-def make_splits(df: pd.DataFrame, val_size=0.15, test_size=0.15, seed=RANDOM_STATE):
-    """Stratified 70/15/15 split on the 6-class `Failure Type`.
 
-    Stratifying on the finest label keeps BOTH the binary ratio (Stage 1) and the
-    5 failure-mode ratios (Stage 2) intact in every split. Stage-2 rows of a
-    split are exactly the failure rows of the same Stage-1 split, so there is
-    no leakage between stages. Original row index is preserved.
-    """
+def make_splits(df: pd.DataFrame, val_size=0.15, test_size=0.15, seed=RANDOM_STATE):
+    
     train_val, test = train_test_split(
-        df, test_size=test_size, stratify=df[STAGE2_TARGET], random_state=seed
-    )
+        df, test_size=test_size, stratify=df[STAGE2_TARGET], random_state=seed)
     train, val = train_test_split(
         train_val,
         test_size=val_size / (1 - test_size),
         stratify=train_val[STAGE2_TARGET],
-        random_state=seed,
-    )
+        random_state=seed,)
     return train.sort_index(), val.sort_index(), test.sort_index()
 
 
@@ -132,26 +116,15 @@ def stage2_xy(split: pd.DataFrame):
     return f[FEATURES], f[STAGE2_TARGET]
 
 
-# --------------------------------------------------------------------------- #
-# Shared preprocessing (encoding + scaling)
-# --------------------------------------------------------------------------- #
-def build_preprocessor() -> ColumnTransformer:
-    """Unfitted. Put it INSIDE a Pipeline so CV re-fits it per fold (no leakage).
 
-    - Type  -> ordinal (L=0, M=1, H=2; it is an ordered quality tier) -> scaled
-    - numeric features -> StandardScaler
-    (scaling is irrelevant for trees but harmless, and required for Logistic Regression)
-    """
+def build_preprocessor() -> ColumnTransformer:
+   
     type_branch = Pipeline(
-        [
-            ("ord", OrdinalEncoder(categories=[["L", "M", "H"]],
-                                   handle_unknown="use_encoded_value", unknown_value=-1)),
-            ("scale", StandardScaler()),
-        ]
-    )
+        [("ord", OrdinalEncoder(categories=[["L", "M", "H"]],
+            handle_unknown="use_encoded_value", unknown_value=-1)),
+            ("scale", StandardScaler()),])
     prep = ColumnTransformer(
         [("type", type_branch, CATEGORICAL_FEATURES),
          ("num", StandardScaler(), NUMERIC_FEATURES)],
-        verbose_feature_names_out=False,
-    )
+        verbose_feature_names_out=False,)
     return prep.set_output(transform="pandas")
